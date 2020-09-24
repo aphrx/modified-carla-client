@@ -521,7 +521,6 @@ class CAN(object):
 
     def send_steering(self, steer):
         if steer  != self.steer_cache:
-            print(steer)
             self.steer_cache = steer
             data = self.steer_message.encode({'STEER_ANGLE': steer * 500, 'STEER_WHEEL_ANGLE': steer * 500})
             message = can.Message(arbitration_id=self.steer_message.frame_id, data=data)

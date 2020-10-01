@@ -87,6 +87,7 @@ import re
 import weakref
 import cantools
 import can
+import cv2
 
 try:
     import pygame
@@ -157,7 +158,7 @@ def get_actor_display_name(actor, truncate=250):
 
 
 class World(object):
-    def __init__(self, carla_world, hud, args):
+    def __init__(self, carla_world, hud, args, lane_assist):
         self.world = carla_world
         self.actor_role_name = args.rolename
         try:
@@ -168,6 +169,7 @@ class World(object):
             print('  Make sure it exists, has the same name of your town, and is correct.')
             sys.exit(1)
         self.hud = hud
+        self.lane_assist = lane_assist
         self.player = None
         self.collision_sensor = None
         self.lane_invasion_sensor = None
@@ -228,7 +230,7 @@ class World(object):
         self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
-        self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
+        self.camera_manager = CameraManager(self.player, self.hud, self._gamma, self.lane_assist)
         self.camera_manager.transform_index = cam_pos_index
         self.camera_manager.set_sensor(cam_index, notify=False)
         actor_type = get_actor_display_name(self.player)
@@ -484,7 +486,24 @@ class KeyboardControl(object):
 
 
 # ==============================================================================
-# -- CAN -----------------------------------------------------------------------
+# -- Lane Assist ------------------------------------------------------ Aphrx --
+# ==============================================================================
+
+
+class LaneAssist(object):
+    def __init__(self):
+        self.array = None
+
+    def set_array(self, array):
+        self.array = array
+
+    def render_array(self):
+        cv2.imshow("Lane Assist", self.array)
+        cv2.waitKey(1)
+
+
+# ==============================================================================
+# -- CAN -------------------------------------------------------------- Aphrx --
 # ==============================================================================
 
 
@@ -934,9 +953,10 @@ class RadarSensor(object):
 
 
 class CameraManager(object):
-    def __init__(self, parent_actor, hud, gamma_correction):
+    def __init__(self, parent_actor, hud, gamma_correction, lane_assist):
         self.sensor = None
         self.surface = None
+        self.lane_assist = lane_assist
         self._parent = parent_actor
         self.hud = hud
         self.recording = False
@@ -1054,9 +1074,11 @@ class CameraManager(object):
             image.convert(self.sensors[self.index][1])
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             array = np.reshape(array, (image.height, image.width, 4))
-            array = array[:, :, :3]
-            array = array[:, :, ::-1]
+            array2 = array[:, :, :3]
+            array = array2[:, :, ::-1]
             self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
+            self.lane_assist.set_array(array2)
+
         if self.recording:
             image.save_to_disk('_out/%08d' % image.frame)
 
@@ -1080,7 +1102,8 @@ def game_loop(args):
             pygame.HWSURFACE | pygame.DOUBLEBUF)
 
         hud = HUD(args.width, args.height)
-        world = World(client.get_world(), hud, args)
+        lane_assist = LaneAssist()
+        world = World(client.get_world(), hud, args, lane_assist)
         controller = KeyboardControl(world, args.autopilot)
 
         clock = pygame.time.Clock()
@@ -1091,6 +1114,8 @@ def game_loop(args):
             world.tick(clock)
             world.render(display)
             pygame.display.flip()
+
+            lane_assist.render_array()
 
     finally:
 

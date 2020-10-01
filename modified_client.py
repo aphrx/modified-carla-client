@@ -493,12 +493,18 @@ class KeyboardControl(object):
 class LaneAssist(object):
     def __init__(self):
         self.array = None
+        self.processed_array = None
 
     def set_array(self, array):
         self.array = array
+        self.process_array(array)
+
+    def process_array(self, array):
+        self.processed_array = cv2.Canny(array, threshold1=200, threshold2=300)
+        self.processed_array = cv2.GaussianBlur(self.processed_array, (5, 5), 0)
 
     def render_array(self):
-        cv2.imshow("Lane Assist", self.array)
+        cv2.imshow("Lane Assist", self.processed_array)
         cv2.waitKey(1)
 
 
